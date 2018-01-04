@@ -1,0 +1,64 @@
+{
+  "name": "graphql-cost-analysis",
+  "version": "0.1.0",
+  "description": "Graphql query cost analyzer. It enables you to control the maximum cost of queries clients send to your graphql server",
+  "main": "dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pa-bru/graphql-cost-analysis.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pa-bru/graphql-cost-analysis/issues"
+  },
+  "homepage": "https://github.com/pa-bru/graphql-cost-analysis",
+  "keywords": [
+    "graphql",
+    "graphql-js",
+    "cost",
+    "analysis",
+    "analyzer",
+    "analyzer",
+    "directive",
+    "complexity",
+    "query",
+    "validation",
+    "rule"
+  ],
+  "author": "Paul-Adrien Bru",
+  "license": "MIT",
+  "peerDependencies": {
+    "graphql": ">=0.11.7"
+  },
+  "scripts": {
+    "prepare": "npm run build",
+    "test": "jest src",
+    "lint": "eslint src",
+    "clean": "rm -rf dist && mkdir dist",
+    "build": "npm run clean && babel src --out-dir dist --ignore '**/*.test.js'",
+    "flow": "flow"
+  },
+  "dependencies": {
+    "graphql": "^0.12.3",
+    "selectn": "^1.1.2"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-eslint": "^8.1.2",
+    "babel-preset-env": "^1.6.1",
+    "babel-preset-flow": "^6.23.0",
+    "eslint": "^4.14.0",
+    "eslint-config-airbnb-base": "^12.1.0",
+    "eslint-config-standard": "^11.0.0-beta.0",
+    "eslint-plugin-flowtype": "^2.40.1",
+    "eslint-plugin-import": "^2.8.0",
+    "eslint-plugin-node": "^5.2.1",
+    "eslint-plugin-promise": "^3.6.0",
+    "eslint-plugin-standard": "^3.0.1",
+    "flow-bin": "^0.62.0",
+    "graphql-tools": "^2.14.1",
+    "jest": "^22.0.4"
+  }
+}

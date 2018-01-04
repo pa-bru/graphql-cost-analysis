@@ -1,0 +1,15 @@
+{
+    "extends": "standard",
+    "env": {
+        "es6": true,
+        "node": true,
+        "jest": true
+    },
+    "parser": "babel-eslint",
+    "plugins": [
+        "flowtype"
+    ],
+    "rules": {
+        "flowtype/define-flow-type": 1
+    }
+}
