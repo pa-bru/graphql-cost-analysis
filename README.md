@@ -1,10 +1,13 @@
 # GraphQL Query Cost Analysis for graphql-js
 
+[![Travis][build-badge]][build]
+[![npm version][npm-badge]][npm]
+
 A GraphQL request cost analyzer.
 
 This can be used to protect your GraphQL servers against DoS attacks, compute the data consumption per user and limit it.
 
-This package parses the request content and computes its cost with the GraphQL server configuration.
+This package parses the request content and computes its cost with your GraphQL server cost configuration.
 
 Backend operations have different complexities and dynamic arguments (like a limit of items to retrieve).
 With this package you can define a cost setting on each GraphQL field/type with **directives** or a **Type Map Object**.
@@ -184,7 +187,15 @@ app.use('/graphql', graphqlHTTP({
 If you just need a simple query complexity analysis (without multipliers or depth of parent multipliers), I suggest you install [graphql-query-complexity]
 
 
+## License
+graphql-cost-analysis is [MIT-licensed].
+
+[build-badge]: https://travis-ci.org/pa-bru/graphql-cost-analysis.svg?branch=master
+[build]: https://travis-ci.org/pa-bru/graphql-cost-analysis
+[npm-badge]: https://img.shields.io/npm/v/graphql-cost-analysis.svg
+[npm]: https://www.npmjs.com/package/graphql-cost-analysis
 [graphql-js]: https://github.com/graphql/graphql-js
 [express-graphql]: https://github.com/graphql/express-graphql
 [apollo-server]: https://github.com/apollographql/apollo-server
 [graphql-query-complexity]: https://github.com/ivome/graphql-query-complexity
+[MIT-licensed]: (https://github.com/pa-bru/graphql-cost-analysis/blob/master/LICENSE)

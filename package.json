@@ -1,7 +1,7 @@
 {
   "name": "graphql-cost-analysis",
   "version": "0.1.0",
-  "description": "Graphql query cost analyzer. It enables you to control the maximum cost of queries clients send to your graphql server",
+  "description": "Graphql query cost analyzer. This can be used to protect your GraphQL servers against DoS attacks, compute the data consumption per user and limit it.",
   "main": "dist/index.js",
   "files": [
     "dist"
