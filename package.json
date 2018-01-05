@@ -1,6 +1,6 @@
 {
   "name": "graphql-cost-analysis",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Graphql query cost analyzer. This can be used to protect your GraphQL servers against DoS attacks, compute the data consumption per user and limit it.",
   "main": "dist/index.js",
   "files": [
@@ -41,10 +41,10 @@
     "flow": "flow"
   },
   "dependencies": {
-    "graphql": "^0.12.3",
     "selectn": "^1.1.2"
   },
   "devDependencies": {
+    "graphql": "^0.12.3",
     "babel-cli": "^6.26.0",
     "babel-eslint": "^8.1.2",
     "babel-preset-env": "^1.6.1",
