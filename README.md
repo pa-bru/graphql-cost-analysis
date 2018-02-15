@@ -42,11 +42,16 @@ Then add the validation rule to the GraphQL server ([apollo-server], [express-gr
 
 **Setup with express-graphql**
 ```javascript
-app.use('/graphql', graphqlHTTP({
+app.use('/graphql', graphqlHTTP((req, res, graphQLParams) => ({
   schema: MyGraphQLSchema,
   graphiql: true,
-  validationRules: [ costAnalyzer ]
-}));
+  validationRules: [ 
+     costAnalysis({
+       variables: graphQLParams.variables,
+       maximumCost: 1000,
+     })
+   ]
+})));
 ```
 
 **Setup with apollo-server-express**
@@ -55,7 +60,12 @@ app.use('/graphql', graphqlExpress(req => {
   return {
     schema,
     rootValue: null,
-    validationRules: [ costAnalyzer ],
+    validationRules: [ 
+      costAnalysis({
+        variables: req.body.variables,
+        maximumCost: 1000,
+      })
+    ]
   }
 }))
 ```
