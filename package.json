@@ -1,6 +1,6 @@
 {
   "name": "graphql-cost-analysis",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Graphql query cost analyzer. This can be used to protect your GraphQL servers against DoS attacks, compute the data consumption per user and limit it.",
   "main": "dist/index.js",
   "files": [
