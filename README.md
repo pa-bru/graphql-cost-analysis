@@ -119,9 +119,7 @@ type Query {
 
   # the cost will depend on the `limit` parameter passed to the field
   # then the multiplier will be added to the `multipliers` array
-  customCostWithResolver(limit: Int): Int @cost(
-    multiplier: "limit", useMultipliers: true, complexity: 4
-  )
+  customCostWithResolver(limit: Int): Int @cost(multiplier: "limit", complexity: 4)
 
   # for recursive cost
   first (limit: Int): First @cost(
@@ -138,10 +136,8 @@ type First {
   myString: String
 
   # the cost will depend on the `limit` value passed to the field and the value of `complexity`
-  # and the parent multipliers args (`useMutipliers` is true): here the `limit` value of the `Query.first` field
-  second (limit: Int): String @cost(
-    multiplier: "limit", useMultipliers: true, complexity: 2
-  )
+  # and the parent multipliers args: here the `limit` value of the `Query.first` field
+  second (limit: Int): String @cost(multiplier: "limit", complexity: 2)
 
   # the cost will be 1 * `multiplier` (1 is the default complexity and `useMultipliers` is false)
   costWithoutMultipliers (limit: Int): Int @cost(useMultipliers: false, multiplier: "limit")
