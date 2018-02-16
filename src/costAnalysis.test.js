@@ -158,10 +158,9 @@ describe('Cost analysis Tests', () => {
     expect(visitor.multipliers).toEqual([limit, limit, limit])
   })
 
-  test(`should consider recursive cost computation + empty
-    multipliers array when the node is of kind operation definition`, () => {
-      const limit = 10
-      const ast = parse(`
+  test(`should consider recursive cost computation + empty multipliers array when the node is of kind operation definition`, () => {
+    const limit = 10
+    const ast = parse(`
         query {
           first(limit: ${limit}) {
             second(limit: ${limit}) {
@@ -172,24 +171,24 @@ describe('Cost analysis Tests', () => {
         }
       `)
 
-      const context = new ValidationContext(schema, ast, typeInfo)
-      const visitor = new CostAnalysis(context, {
-        maximumCost: 10000
-      })
-
-      visit(ast, visitWithTypeInfo(typeInfo, visitor))
-
-      const firstCost = limit * firstComplexity
-      const secondCost = limit * limit * secondComplexity
-      const thirdCost = limit * limit * limit * thirdComplexity
-
-      const result = firstCost + secondCost + thirdCost + customCost
-      expect(visitor.cost).toEqual(result)
-      // visitor.multipliers should be empty at the end
-      // because customCost is another node in the Query type
-      // and customCost has no multiplier arg itself
-      expect(visitor.multipliers).toEqual([])
+    const context = new ValidationContext(schema, ast, typeInfo)
+    const visitor = new CostAnalysis(context, {
+      maximumCost: 10000
     })
+
+    visit(ast, visitWithTypeInfo(typeInfo, visitor))
+
+    const firstCost = limit * firstComplexity
+    const secondCost = limit * limit * secondComplexity
+    const thirdCost = limit * limit * limit * thirdComplexity
+
+    const result = firstCost + secondCost + thirdCost + customCost
+    expect(visitor.cost).toEqual(result)
+    // visitor.multipliers should be empty at the end
+    // because customCost is another node in the Query type
+    // and customCost has no multiplier arg itself
+    expect(visitor.multipliers).toEqual([])
+  })
 
   test('should report error if the maximum cost is reached', () => {
     const ast = parse(`
