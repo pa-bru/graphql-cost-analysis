@@ -155,14 +155,12 @@ describe('Cost analysis Tests', () => {
 
     const result = firstCost + secondCost + thirdCost
     expect(visitor.cost).toEqual(result)
-    expect(visitor.multipliers).toEqual([ limit, limit, limit ])
+    expect(visitor.multipliers).toEqual([limit, limit, limit])
   })
 
-  test(
-    `should consider recursive cost computation + empty
-    multipliers array when the node is of kind operation definition`, () => {
-      const limit = 10
-      const ast = parse(`
+  test(`should consider recursive cost computation + empty multipliers array when the node is of kind operation definition`, () => {
+    const limit = 10
+    const ast = parse(`
         query {
           first(limit: ${limit}) {
             second(limit: ${limit}) {
@@ -173,24 +171,24 @@ describe('Cost analysis Tests', () => {
         }
       `)
 
-      const context = new ValidationContext(schema, ast, typeInfo)
-      const visitor = new CostAnalysis(context, {
-        maximumCost: 10000
-      })
-
-      visit(ast, visitWithTypeInfo(typeInfo, visitor))
-
-      const firstCost = limit * firstComplexity
-      const secondCost = limit * limit * secondComplexity
-      const thirdCost = limit * limit * limit * thirdComplexity
-
-      const result = firstCost + secondCost + thirdCost + customCost
-      expect(visitor.cost).toEqual(result)
-      // visitor.multipliers should be empty at the end
-      // because customCost is another node in the Query type
-      // and customCost has no multiplier arg itself
-      expect(visitor.multipliers).toEqual([])
+    const context = new ValidationContext(schema, ast, typeInfo)
+    const visitor = new CostAnalysis(context, {
+      maximumCost: 10000
     })
+
+    visit(ast, visitWithTypeInfo(typeInfo, visitor))
+
+    const firstCost = limit * firstComplexity
+    const secondCost = limit * limit * secondComplexity
+    const thirdCost = limit * limit * limit * thirdComplexity
+
+    const result = firstCost + secondCost + thirdCost + customCost
+    expect(visitor.cost).toEqual(result)
+    // visitor.multipliers should be empty at the end
+    // because customCost is another node in the Query type
+    // and customCost has no multiplier arg itself
+    expect(visitor.multipliers).toEqual([])
+  })
 
   test('should report error if the maximum cost is reached', () => {
     const ast = parse(`
@@ -212,25 +210,6 @@ describe('Cost analysis Tests', () => {
     )
   })
 
-  test('should report error if the complexity argument is not between 1 and 10', () => {
-    const ast = parse(`
-      query {
-        badComplexityArgument
-      }
-    `)
-
-    const context = new ValidationContext(schema, ast, typeInfo)
-    const visitor = new CostAnalysis(context, {
-      maximumCost: 1000
-    })
-
-    visit(ast, visitWithTypeInfo(typeInfo, visitor))
-    expect(context.getErrors().length).toEqual(1)
-    expect(context.getErrors()[0].message).toEqual(
-      'The complexity argument must be between 1 and 10'
-    )
-  })
-
   test('should not allow negative cost', () => {
     const ast = parse(`
       query {
@@ -247,39 +226,45 @@ describe('Cost analysis Tests', () => {
     expect(visitor.cost).toEqual(0)
   })
 
-  test('a cost directive defined on a field should override ' +
-  'the cost directive defined on the type definition', () => {
-    const ast = parse(`
+  test(
+    'a cost directive defined on a field should override ' +
+      'the cost directive defined on the type definition',
+    () => {
+      const ast = parse(`
       query {
         overrideTypeCost
       }
     `)
 
-    const context = new ValidationContext(schema, ast, typeInfo)
-    const visitor = new CostAnalysis(context, {
-      maximumCost: 100
-    })
+      const context = new ValidationContext(schema, ast, typeInfo)
+      const visitor = new CostAnalysis(context, {
+        maximumCost: 100
+      })
 
-    visit(ast, visitWithTypeInfo(typeInfo, visitor))
-    expect(visitor.cost).toEqual(2)
-  })
+      visit(ast, visitWithTypeInfo(typeInfo, visitor))
+      expect(visitor.cost).toEqual(2)
+    }
+  )
 
-  test('if a field returns a specific type and the type has a cost directive and ' +
-  'the field does not have a cost directive, the cost will be of that type', () => {
-    const ast = parse(`
+  test(
+    'if a field returns a specific type and the type has a cost directive and ' +
+      'the field does not have a cost directive, the cost will be of that type',
+    () => {
+      const ast = parse(`
       query {
         getCostByType
       }
     `)
 
-    const context = new ValidationContext(schema, ast, typeInfo)
-    const visitor = new CostAnalysis(context, {
-      maximumCost: 100
-    })
+      const context = new ValidationContext(schema, ast, typeInfo)
+      const visitor = new CostAnalysis(context, {
+        maximumCost: 100
+      })
 
-    visit(ast, visitWithTypeInfo(typeInfo, visitor))
-    expect(visitor.cost).toEqual(3)
-  })
+      visit(ast, visitWithTypeInfo(typeInfo, visitor))
+      expect(visitor.cost).toEqual(3)
+    }
+  )
 
   test('if costMap option is provided, we compute the score with it', () => {
     const limit = 15
@@ -326,5 +311,65 @@ describe('Cost analysis Tests', () => {
 
     visit(ast, visitWithTypeInfo(typeInfo, visitor))
     expect(visitor.cost).toEqual(visitor.defaultCost)
+  })
+
+  test('should be able to add a custom complexity range and return an error if a complexity does not respect our range', () => {
+    const ast = parse(`
+      query {
+        badComplexityArgument
+      }
+    `)
+
+    const min = 1
+    const max = 3
+
+    const context = new ValidationContext(schema, ast, typeInfo)
+    const visitor = new CostAnalysis(context, {
+      maximumCost: 1000,
+      complexityRange: {
+        min,
+        max
+      }
+    })
+
+    visit(ast, visitWithTypeInfo(typeInfo, visitor))
+    expect(context.getErrors().length).toEqual(1)
+    expect(context.getErrors()[0].message).toEqual(
+      `The complexity argument must be between ${min} and ${max}`
+    )
+    expect(visitor.cost).toEqual(visitor.defaultCost)
+  })
+
+  test('assert complexityRange.min and complexityRange.max are valid', () => {
+    const ast = parse(`
+      query {
+        badComplexityArgument
+      }
+    `)
+
+    const min = 100
+    const max = 1
+    const context = new ValidationContext(schema, ast, typeInfo)
+
+    // min > max should throw an error
+    expect(() => {
+      const visitor = new CostAnalysis(context, {
+        maximumCost: 1000,
+        complexityRange: {
+          min,
+          max
+        }
+      })
+      visit(ast, visitWithTypeInfo(typeInfo, visitor))
+    }).toThrow('Invalid minimum and maximum complexity')
+
+    // omitting min or max properties should throw an error
+    expect(() => {
+      const visitor = new CostAnalysis(context, {
+        maximumCost: 1000,
+        complexityRange: {}
+      })
+      visit(ast, visitWithTypeInfo(typeInfo, visitor))
+    }).toThrow('Invalid minimum and maximum complexity')
   })
 })
