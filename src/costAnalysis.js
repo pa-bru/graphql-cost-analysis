@@ -17,7 +17,10 @@ import type {
   FieldNode,
   InlineFragmentNode,
   DirectiveNode,
-  GraphQLNamedType
+  GraphQLNamedType,
+  ValueNode,
+  ArgumentNode,
+  SelectionNode
 } from 'graphql'
 
 export type CostAnalysisOptions = {
@@ -27,7 +30,7 @@ export type CostAnalysisOptions = {
   createError?: (maximumCost: number, cost: number) => GraphQLError,
   defaultCost?: number,
   costMap?: Object,
-  complexityRange?: { min: number, max: number }
+  complexityRange?: { min: number, max: number },
 }
 
 type NodeType =
@@ -39,7 +42,8 @@ type NodeType =
 type NodeCostConfiguration = {
   multiplier?: ?number,
   useMultipliers?: boolean,
-  complexity?: number
+  complexity?: number,
+  multipliers?: Array<number>,
 }
 
 function costAnalysisMessage (max, actual) {
@@ -55,8 +59,9 @@ export default class CostAnalysis {
   options: CostAnalysisOptions
   fragments: { [name: string]: FragmentDefinitionNode }
   OperationDefinition: Object
-  multipliers: Array<number>
+  operationMultipliers: Array<number>
   defaultCost: number
+  defaultComplexity: number
 
   constructor (context: ValidationContext, options: CostAnalysisOptions) {
     assert(
@@ -76,8 +81,10 @@ export default class CostAnalysis {
     this.context = context
     this.cost = 0
     this.options = options
-    this.multipliers = []
+    this.operationMultipliers = []
     this.defaultCost = this.options.defaultCost || 0
+    this.defaultComplexity =
+      (this.options.complexityRange && this.options.complexityRange.min) || 1
 
     this.OperationDefinition = {
       enter: this.onOperationDefinitionEnter,
@@ -127,10 +134,19 @@ export default class CostAnalysis {
   computeCost ({
     multiplier,
     useMultipliers = true,
-    complexity = (this.options.complexityRange &&
-      this.options.complexityRange.min) ||
-      1
+    complexity = this.defaultComplexity,
+    multipliers = []
   }: NodeCostConfiguration) {
+    // multiplier is deprecated
+    if (multiplier) {
+      multipliers = multipliers.length ? multipliers : [multiplier]
+      process.env.NODE_ENV !== 'production' &&
+        console.warn(
+          `The multiplier property is DEPRECATED and will be removed in the next release. \n` +
+            `Please use the multipliers field instead.`
+        )
+    }
+
     if (
       this.options.complexityRange &&
       (complexity > this.options.complexityRange.max ||
@@ -148,10 +164,14 @@ export default class CostAnalysis {
     }
 
     if (useMultipliers) {
-      if (multiplier) {
-        this.multipliers.push(parseInt(multiplier))
+      if (multipliers.length) {
+        const multiplier = multipliers.reduce(
+          (total, current) => total + current,
+          0
+        )
+        this.operationMultipliers.push(multiplier)
       }
-      return this.multipliers.reduce(
+      return this.operationMultipliers.reduce(
         (acc, multiplier) => acc * multiplier,
         complexity
       )
@@ -173,10 +193,40 @@ export default class CostAnalysis {
       return this.defaultCost
     }
 
-    let { useMultipliers, multiplier, complexity } = costObject
+    let { useMultipliers, multiplier, complexity, multipliers } = costObject
     multiplier = multiplier && selectn(multiplier, fieldArgs)
+    multipliers = this.getMultipliersFromString(multipliers, fieldArgs)
 
-    return this.computeCost({ useMultipliers, multiplier, complexity })
+    return this.computeCost({
+      useMultipliers,
+      multiplier,
+      complexity,
+      multipliers
+    })
+  }
+
+  getMultipliersFromListNode (
+    listNode: $ReadOnlyArray<ValueNode>,
+    fieldArgs: { [argument: string]: mixed }
+  ) {
+    const multipliers = []
+    listNode.forEach(node => {
+      if (node.kind === Kind.STRING) {
+        multipliers.push(node.value)
+      }
+    })
+
+    return this.getMultipliersFromString(multipliers, fieldArgs)
+  }
+
+  getMultipliersFromString (
+    multipliers: Array<string> = [],
+    fieldArgs: { [argument: string]: mixed }
+  ): Array<number> {
+    // get arguments values, convert to integer and delete 0 values from list
+    return multipliers
+      .map(multiplier => Number(selectn(multiplier, fieldArgs)) || 0)
+      .filter(multiplier => multiplier !== 0)
   }
 
   computeCostFromDirectives (
@@ -194,31 +244,51 @@ export default class CostAnalysis {
       const useMultipliersArg =
         costDirective.arguments &&
         costDirective.arguments.find(arg => arg.name.value === 'useMultipliers')
+
       const multiplierArg =
         costDirective.arguments &&
         costDirective.arguments.find(arg => arg.name.value === 'multiplier')
+
+      const multipliersArg: ?ArgumentNode =
+        costDirective.arguments &&
+        costDirective.arguments.find(arg => arg.name.value === 'multipliers')
 
       // get arguments's values
       const useMultipliers =
         useMultipliersArg &&
         useMultipliersArg.value &&
-        useMultipliersArg.value.kind === 'BooleanValue'
+        useMultipliersArg.value.kind === Kind.BOOLEAN
           ? useMultipliersArg.value.value
           : true
 
+      const multipliers: Array<number> =
+        multipliersArg &&
+        multipliersArg.value &&
+        multipliersArg.value.kind === Kind.LIST
+          ? this.getMultipliersFromListNode(
+            multipliersArg.value.values,
+            fieldArgs
+          )
+          : []
+
       const multiplier: ?number =
         multiplierArg && multiplierArg.value.value
-          ? parseInt(selectn(multiplierArg.value.value, fieldArgs))
+          ? Number(selectn(multiplierArg.value.value, fieldArgs))
           : undefined
 
       const complexity =
         complexityArg &&
         complexityArg.value &&
-        complexityArg.value.kind === 'IntValue'
-          ? parseInt(complexityArg.value.value)
-          : 1
+        complexityArg.value.kind === Kind.INT
+          ? Number(complexityArg.value.value)
+          : this.defaultComplexity
 
-      return this.computeCost({ multiplier, useMultipliers, complexity })
+      return this.computeCost({
+        multiplier,
+        useMultipliers,
+        complexity,
+        multipliers
+      })
     }
     return this.defaultCost
   }
@@ -234,115 +304,120 @@ export default class CostAnalysis {
     ) {
       fields = typeDef.getFields()
     }
-    return node.selectionSet.selections.reduce((total: number, childNode) => {
-      let nodeCost: number = this.defaultCost
+    return node.selectionSet.selections.reduce(
+      (total: number, childNode: SelectionNode) => {
+        let nodeCost: number = this.defaultCost
 
-      // empty array of multipliers if field is at the root of an operation
-      if (node.kind === Kind.OPERATION_DEFINITION) {
-        this.multipliers = []
-      }
+        // empty array of operation multipliers if field is at the root of an operation
+        if (node.kind === Kind.OPERATION_DEFINITION) {
+          this.operationMultipliers = []
+        }
 
-      switch (childNode.kind) {
-        case Kind.FIELD: {
-          const field: Object = fields[childNode.name.value]
-          // Invalid field, should be caught by other validation rules
-          if (!field) {
-            break
-          }
-          const fieldType = getNamedType(field.type)
+        switch (childNode.kind) {
+          case Kind.FIELD: {
+            const field: Object = fields[childNode.name.value]
+            // Invalid field, should be caught by other validation rules
+            if (!field) {
+              break
+            }
+            const fieldType = getNamedType(field.type)
 
-          // get field's arguments
-          let fieldArgs = {}
-          try {
-            fieldArgs = getArgumentValues(
-              field,
-              childNode,
-              this.options.variables || {}
-            )
-          } catch (e) {
-            this.context.reportError(e)
-          }
+            // get field's arguments
+            let fieldArgs = {}
+            try {
+              fieldArgs = getArgumentValues(
+                field,
+                childNode,
+                this.options.variables || {}
+              )
+            } catch (e) {
+              this.context.reportError(e)
+            }
 
-          // it the costMap option is set, compute the cost with the costMap provided
-          // by the user.
-          if (
-            this.options.costMap &&
-            typeof this.options.costMap === 'object'
-          ) {
-            nodeCost =
-              typeDef && typeDef.name
-                ? this.computeCostFromTypeMap(
-                  childNode,
-                  typeDef.name,
+            // it the costMap option is set, compute the cost with the costMap provided
+            // by the user.
+            if (
+              this.options.costMap &&
+              typeof this.options.costMap === 'object'
+            ) {
+              nodeCost =
+                typeDef && typeDef.name
+                  ? this.computeCostFromTypeMap(
+                    childNode,
+                    typeDef.name,
+                    fieldArgs
+                  )
+                  : this.defaultCost
+            } else {
+              // Compute cost of current field with its directive
+              let costIsComputed: boolean = false
+              if (field.astNode && field.astNode.directives) {
+                nodeCost = this.computeCostFromDirectives(
+                  field.astNode.directives,
                   fieldArgs
                 )
-                : this.defaultCost
-          } else {
-            // Compute cost of current field with its directive
-            let costIsComputed: boolean = false
-            if (field.astNode && field.astNode.directives) {
-              nodeCost = this.computeCostFromDirectives(
-                field.astNode.directives,
-                fieldArgs
-              )
-              const costDirective = field.astNode.directives.find(
-                directive => directive.name.value === 'cost'
-              )
-              if (costDirective && costDirective.arguments) {
-                costIsComputed = true
+                const costDirective = field.astNode.directives.find(
+                  directive => directive.name.value === 'cost'
+                )
+                if (costDirective && costDirective.arguments) {
+                  costIsComputed = true
+                }
+              }
+              // if the cost directive is defined on the Type
+              // and the nodeCost has not already been computed
+              if (
+                fieldType &&
+                fieldType.astNode &&
+                fieldType.astNode.directives &&
+                fieldType instanceof GraphQLObjectType &&
+                costIsComputed === false
+              ) {
+                nodeCost = this.computeCostFromDirectives(
+                  fieldType.astNode.directives,
+                  fieldArgs
+                )
               }
             }
-            // if the cost directive is defined on the Type
-            // and the nodeCost has not already been computed
-            if (
-              fieldType &&
-              fieldType.astNode &&
-              fieldType.astNode.directives &&
-              fieldType instanceof GraphQLObjectType &&
-              costIsComputed === false
-            ) {
-              nodeCost = this.computeCostFromDirectives(
-                fieldType.astNode.directives,
-                fieldArgs
-              )
-            }
-          }
 
-          let childCost = 0
-          childCost = this.computeNodeCost(childNode, fieldType)
-          nodeCost += childCost
-          break
-        }
-        case Kind.FRAGMENT_SPREAD: {
-          const fragment = this.context.getFragment(childNode.name.value)
-          const fragmentType =
-            fragment &&
-            this.context.getSchema().getType(fragment.typeCondition.name.value)
-          nodeCost = fragment
-            ? this.computeNodeCost(fragment, fragmentType)
-            : this.defaultCost
-          break
-        }
-        case Kind.INLINE_FRAGMENT: {
-          let inlineFragmentType = typeDef
-          if (childNode.typeCondition && childNode.typeCondition.name) {
-            inlineFragmentType = this.context
-              .getSchema()
-              // $FlowFixMe: don't know why Flow thinks it could be undefined
-              .getType(childNode.typeCondition.name.value)
+            let childCost = 0
+            childCost = this.computeNodeCost(childNode, fieldType)
+            nodeCost += childCost
+            break
           }
-          nodeCost = childNode
-            ? this.computeNodeCost(childNode, inlineFragmentType)
-            : this.defaultCost
-          break
+          case Kind.FRAGMENT_SPREAD: {
+            const fragment = this.context.getFragment(childNode.name.value)
+            const fragmentType =
+              fragment &&
+              this.context
+                .getSchema()
+                .getType(fragment.typeCondition.name.value)
+            nodeCost = fragment
+              ? this.computeNodeCost(fragment, fragmentType)
+              : this.defaultCost
+            break
+          }
+          case Kind.INLINE_FRAGMENT: {
+            let inlineFragmentType = typeDef
+            if (childNode.typeCondition && childNode.typeCondition.name) {
+              inlineFragmentType = this.context
+                .getSchema()
+                // $FlowFixMe: don't know why Flow thinks it could be undefined
+                .getType(childNode.typeCondition.name.value)
+            }
+            nodeCost = childNode
+              ? this.computeNodeCost(childNode, inlineFragmentType)
+              : this.defaultCost
+            break
+          }
+          default: {
+            nodeCost = this.computeNodeCost(childNode, typeDef)
+            break
+          }
         }
-        default: {
-          nodeCost = this.computeNodeCost(childNode, typeDef)
-          break
-        }
-      }
-      return Math.max(nodeCost, 0) + total
-    }, 0)
+        return Math.max(nodeCost, 0) + total
+      },
+      0
+    )
   }
 
   createError (): GraphQLError {
