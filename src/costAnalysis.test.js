@@ -399,35 +399,37 @@ describe('Cost analysis Tests', () => {
     }
   )
 
-  test('Using the DEPRECATED field `multiplier` should log a warning.', () => {
-    const limit = 15
-    const ast = parse(`
-      query {
-        first(limit: ${limit})
-      }
-    `)
+  if (process.env.NODE_ENV !== 'production') {
+    test('Using the DEPRECATED field `multiplier` should log a warning.', () => {
+      const limit = 15
+      const ast = parse(`
+        query {
+          first(limit: ${limit})
+        }
+      `)
 
-    const costMap = {
-      Query: {
-        first: {
-          multiplier: 'limit',
-          useMultipliers: true,
-          complexity: 3
+      const costMap = {
+        Query: {
+          first: {
+            multiplier: 'limit',
+            useMultipliers: true,
+            complexity: 3
+          }
         }
       }
-    }
 
-    const context = new ValidationContext(schema, ast, typeInfo)
-    const visitor = new CostAnalysis(context, {
-      maximumCost: 100,
-      costMap
+      const context = new ValidationContext(schema, ast, typeInfo)
+      const visitor = new CostAnalysis(context, {
+        maximumCost: 100,
+        costMap
+      })
+      const warn = jest.spyOn(global.console, 'warn')
+
+      visit(ast, visitWithTypeInfo(typeInfo, visitor))
+      const expectedCost = costMap.Query.first.complexity * limit
+      expect(visitor.cost).toEqual(expectedCost)
+      // should log a warning about the deprecated field 'multiplier'
+      expect(warn).toHaveBeenCalled()
     })
-    const warn = jest.spyOn(global.console, 'warn')
-
-    visit(ast, visitWithTypeInfo(typeInfo, visitor))
-    const expectedCost = costMap.Query.first.complexity * limit
-    expect(visitor.cost).toEqual(expectedCost)
-    // should log a warning about the deprecated field 'multiplier'
-    expect(warn).toHaveBeenCalled()
-  })
+  }
 })
