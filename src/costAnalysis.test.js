@@ -12,6 +12,7 @@ const customCost = 8
 const firstComplexity = 2
 const secondComplexity = 5
 const thirdComplexity = 6
+const fourthComplexity = 4
 
 const typeDefs = `
   interface BasicInterface {
@@ -25,12 +26,16 @@ const typeDefs = `
     customCost: Int @cost(useMultipliers: false, complexity: ${customCost})
     badComplexityArgument: Int @cost(complexity: 12)
     customCostWithResolver(limit: Int): Int @cost(
-      multiplier: "limit", useMultipliers: true, complexity: 4
+      multipliers: ["limit"], useMultipliers: true, complexity: ${fourthComplexity}
     )
 
     # for recursive cost
     first (limit: Int): First @cost(
-      multiplier: "limit", useMultipliers: true, complexity: ${firstComplexity}
+      multipliers: ["limit"], useMultipliers: true, complexity: ${firstComplexity}
+    )
+
+    severalMultipliers(first: Int, last: Int): Int @cost(
+      multipliers: ["coucou", "first", "last"], useMultipliers: true, complexity: ${fourthComplexity}
     )
 
     overrideTypeCost: TypeCost @cost(complexity: 2)
@@ -41,7 +46,7 @@ const typeDefs = `
     string: String
     int: Int
     second (limit: Int): Second @cost(
-      multiplier: "limit", useMultipliers: true, complexity: ${secondComplexity}
+      multipliers: ["limit"], useMultipliers: true, complexity: ${secondComplexity}
     )
   }
 
@@ -49,7 +54,7 @@ const typeDefs = `
     string: String
     int: Int
     third (limit: Int): String @cost(
-      multiplier: "limit", useMultipliers: true, complexity: ${thirdComplexity}
+      multipliers: ["limit"], useMultipliers: true, complexity: ${thirdComplexity}
     )
   }
 
@@ -155,7 +160,7 @@ describe('Cost analysis Tests', () => {
 
     const result = firstCost + secondCost + thirdCost
     expect(visitor.cost).toEqual(result)
-    expect(visitor.multipliers).toEqual([limit, limit, limit])
+    expect(visitor.operationMultipliers).toEqual([limit, limit, limit])
   })
 
   test(`should consider recursive cost computation + empty multipliers array when the node is of kind operation definition`, () => {
@@ -184,10 +189,10 @@ describe('Cost analysis Tests', () => {
 
     const result = firstCost + secondCost + thirdCost + customCost
     expect(visitor.cost).toEqual(result)
-    // visitor.multipliers should be empty at the end
+    // visitor.operationMultipliers should be empty at the end
     // because customCost is another node in the Query type
-    // and customCost has no multiplier arg itself
-    expect(visitor.multipliers).toEqual([])
+    // and customCost has no multipliers arg itself
+    expect(visitor.operationMultipliers).toEqual([])
   })
 
   test('should report error if the maximum cost is reached', () => {
@@ -277,9 +282,9 @@ describe('Cost analysis Tests', () => {
     const costMap = {
       Query: {
         first: {
-          multiplier: 'limit',
           useMultipliers: true,
-          complexity: 3
+          complexity: 3,
+          multipliers: ['limit']
         }
       }
     }
@@ -289,7 +294,6 @@ describe('Cost analysis Tests', () => {
       maximumCost: 100,
       costMap
     })
-
     visit(ast, visitWithTypeInfo(typeInfo, visitor))
     const expectedCost = costMap.Query.first.complexity * limit
     expect(visitor.cost).toEqual(expectedCost)
@@ -372,4 +376,60 @@ describe('Cost analysis Tests', () => {
       visit(ast, visitWithTypeInfo(typeInfo, visitor))
     }).toThrow('Invalid minimum and maximum complexity')
   })
+
+  test(
+    `Assert fields in the multipliers array property are added together and then multiplicated ` +
+      `by the complexity and the parent multipliers (if useMultipliers === true)`,
+    () => {
+      const first = 10
+      const last = 4
+      const ast = parse(`
+        query {
+          severalMultipliers(first: ${first}, last: ${last})
+        }
+      `)
+
+      const context = new ValidationContext(schema, ast, typeInfo)
+      const visitor = new CostAnalysis(context, {
+        maximumCost: 1000
+      })
+      visit(ast, visitWithTypeInfo(typeInfo, visitor))
+      const expectedCost = fourthComplexity * (first + last)
+      expect(visitor.cost).toEqual(expectedCost)
+    }
+  )
+
+  if (process.env.NODE_ENV !== 'production') {
+    test('Using the DEPRECATED field `multiplier` should log a warning.', () => {
+      const limit = 15
+      const ast = parse(`
+        query {
+          first(limit: ${limit})
+        }
+      `)
+
+      const costMap = {
+        Query: {
+          first: {
+            multiplier: 'limit',
+            useMultipliers: true,
+            complexity: 3
+          }
+        }
+      }
+
+      const context = new ValidationContext(schema, ast, typeInfo)
+      const visitor = new CostAnalysis(context, {
+        maximumCost: 100,
+        costMap
+      })
+      const warn = jest.spyOn(global.console, 'warn')
+
+      visit(ast, visitWithTypeInfo(typeInfo, visitor))
+      const expectedCost = costMap.Query.first.complexity * limit
+      expect(visitor.cost).toEqual(expectedCost)
+      // should log a warning about the deprecated field 'multiplier'
+      expect(warn).toHaveBeenCalled()
+    })
+  }
 })

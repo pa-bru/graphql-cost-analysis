@@ -1,11 +1,10 @@
 {
   "name": "graphql-cost-analysis",
-  "version": "0.1.2",
-  "description": "Graphql query cost analyzer. This can be used to protect your GraphQL servers against DoS attacks, compute the data consumption per user and limit it.",
+  "version": "1.0.0",
+  "description":
+    "Graphql query cost analyzer. Use it to protect your GraphQL servers against DoS attacks, compute data consumption per user and limit it.",
   "main": "dist/index.js",
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "repository": {
     "type": "git",
     "url": "https://github.com/pa-bru/graphql-cost-analysis.git"
@@ -34,23 +33,23 @@
   },
   "scripts": {
     "prepare": "npm run build",
-    "test": "jest src",
+    "prepublishOnly": "npm run test && npm run flow",
+    "precommit": "lint-staged",
     "lint": "eslint src",
-    "clean": "rm -rf dist && mkdir dist",
-    "build": "npm run clean && babel src --out-dir dist --ignore '**/*.test.js'",
+    "prebuild": "rimraf dist",
+    "build": "babel src --out-dir dist --ignore '**/*.test.js'",
+    "test": "jest src",
     "flow": "flow"
   },
   "dependencies": {
     "selectn": "^1.1.2"
   },
   "devDependencies": {
-    "graphql": "^0.12.3",
     "babel-cli": "^6.26.0",
     "babel-eslint": "^8.1.2",
     "babel-preset-env": "^1.6.1",
     "babel-preset-flow": "^6.23.0",
     "eslint": "^4.14.0",
-    "eslint-config-airbnb-base": "^12.1.0",
     "eslint-config-standard": "^11.0.0-beta.0",
     "eslint-plugin-flowtype": "^2.40.1",
     "eslint-plugin-import": "^2.8.0",
@@ -58,7 +57,14 @@
     "eslint-plugin-promise": "^3.6.0",
     "eslint-plugin-standard": "^3.0.1",
     "flow-bin": "^0.62.0",
+    "graphql": "^0.12.3",
     "graphql-tools": "^2.14.1",
-    "jest": "^22.0.4"
+    "husky": "^0.14.3",
+    "jest": "^22.4.0",
+    "lint-staged": "^6.1.1",
+    "rimraf": "^2.6.2"
+  },
+  "lint-staged": {
+    "*.js": ["eslint src --fix", "git add"]
   }
 }
