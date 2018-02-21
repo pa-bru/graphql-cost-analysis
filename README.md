@@ -80,15 +80,15 @@ app.use(
 
 The `costAnalysis` function accepts the following options:
 
-| Argument                       | Description                                                                                                                                                                                                                                                                              | Type                               | Default   | Required |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | --------- | -------- |
-| maximumCost                    | The maximum allowed cost. Queries above this threshold will be rejected.                                                                                                                                                                                                                 | Int                                | undefined | yes      |
-| variables                      | The query variables. This is needed because the variables are not available in the visitor of the graphql-js library.                                                                                                                                                                    | Object                             | undefined | no       |
-| defaultCost                    | Fields without cost setting will have this default value.                                                                                                                                                                                                                                | Int                                | 0         | no       |
-| costMap                        | A Type Map Object where you can define the cost setting of each field without adding cost directives to your schema. <br>If this object is defined, cost directives will be ignored.<br>Each field in the Cost Map Object can have 3 args: `multiplier`, `useMultipliers`, `complexity`. | Object                             | undefined | no       |
-| complexityRange                | An optional object defining a range the complexity must respect. It throws an error if it's not the case.                                                                                                                                                                                | Object: {min: number, max: number} | undefined | no       |
-| onComplete(cost)               | Callback function to retrieve the determined query cost. It will be invoked whether the query is rejected or not. <br>This can be used for logging or to implement rate limiting (for example, to store the cost by session and define a max cost the user can have in a specific time). | Function                           | undefined | no       |
-| createError(maximumCost, cost) | Function to create a custom error.                                                                                                                                                                                                                                                       | Function                           | undefined | no       |
+| Argument                       | Description                                                                                                                                                                                                                                                                               | Type                               | Default   | Required |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | --------- | -------- |
+| maximumCost                    | The maximum allowed cost. Queries above this threshold will be rejected.                                                                                                                                                                                                                  | Int                                | undefined | yes      |
+| variables                      | The query variables. This is needed because the variables are not available in the visitor of the graphql-js library.                                                                                                                                                                     | Object                             | undefined | no       |
+| defaultCost                    | Fields without cost setting will have this default value.                                                                                                                                                                                                                                 | Int                                | 0         | no       |
+| costMap                        | A Type Map Object where you can define the cost setting of each field without adding cost directives to your schema. <br>If this object is defined, cost directives will be ignored.<br>Each field in the Cost Map Object can have 3 args: `multipliers`, `useMultipliers`, `complexity`. | Object                             | undefined | no       |
+| complexityRange                | An optional object defining a range the complexity must respect. It throws an error if it's not the case.                                                                                                                                                                                 | Object: {min: number, max: number} | undefined | no       |
+| onComplete(cost)               | Callback function to retrieve the determined query cost. It will be invoked whether the query is rejected or not. <br>This can be used for logging or to implement rate limiting (for example, to store the cost by session and define a max cost the user can have in a specific time).  | Function                           | undefined | no       |
+| createError(maximumCost, cost) | Function to create a custom error.                                                                                                                                                                                                                                                        | Function                           | undefined | no       |
 
 ## A Custom Cost for Each Field/Type
 
@@ -99,13 +99,13 @@ Now that your global configuration is set, you can define the cost calculation f
 * with a `@cost` directive
 * by passing a Type Map Object to the `costAnalysis` function (see `costMap` argument)
 
-### Cost Settings Arguments:
+### Cost Settings Arguments
 
-| Argument       | Description                                                                                                                                                                                                                                                                             | Type                  | Default   | Required |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- | --------- | -------- |
-| multiplier     | The name of a parameter present in the GraphQL field. Use this parameter's value to compute the field's cost dynamically. <br>E.g: GraphQL field is `getUser(filters: {limit: 5})`. The mutliplier could be `"filters.limit"`.                                                          | String                | undefined | no       |
-| useMultipliers | Defines if the field's cost depends on the parent multipliers.                                                                                                                                                                                                                          | Boolean               | true      | no       |
-| complexity     | The level of complexity to resolve the current field. <br>If the field needs to call an expensive service to resolve itself, then the complexity should be at a high level but if the field is easy to resolve and not an expensive operation, the complexity should be at a low level. | Int (min: 1; max: 10) | 1         | no       |
+| Argument       | Description                                                                                                                                                                                                                                                                                                                                                                                                       | Type                              | Default   | Required |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- | --------- | -------- |
+| multipliers    | An array containing names of parameters present in the GraphQL field. Use this parameter's value to compute the field's cost dynamically. <br>E.g: GraphQL field is `getUser(filters: {limit: 5})`. The `multipliers` array could be `["filters.limit"]`. <br>E.g 2: `posts(first: 5, last: 5)`. The `multipliers` array could be `["first", "last"]`. Then the cost would be `complexity` \* (`first` + `last`). | Array                             | undefined | no       |
+| useMultipliers | Defines if the field's cost depends on the parent multipliers and field's multipliers.                                                                                                                                                                                                                                                                                                                            | Boolean                           | true      | no       |
+| complexity     | The level of complexity to resolve the current field. <br>If the field needs to call an expensive service to resolve itself, then the complexity should be at a high level but if the field is easy to resolve and not an expensive operation, the complexity should be at a low level.                                                                                                                           | Object {min: number, max: number} | {min: 1}  | no       |
 
 ## Defining the Cost Settings via Directives
 
@@ -131,17 +131,23 @@ type Query {
   badComplexityArgument: Int @cost(complexity: 12)
 
   # the cost will depend on the `limit` parameter passed to the field
-  # then the multiplier will be added to the `multipliers` array
-  customCostWithResolver(limit: Int): Int @cost(multiplier: "limit", complexity: 4)
+  # then the multiplier will be added to the `parent multipliers` array
+  customCostWithResolver(limit: Int): Int
+    @cost(multipliers: ["limit"], complexity: 4)
 
   # for recursive cost
-  first (limit: Int): First @cost(
-    multiplier: "limit", useMultipliers: true, complexity: ${firstComplexity}
-  )
+  first(limit: Int): First
+    @cost(multipliers: ["limit"], useMultipliers: true, complexity: 2)
 
   # you can override the cost setting defined directly on a type
   overrideTypeCost: TypeCost @cost(complexity: 2)
   getCostByType: TypeCost
+
+  # You can specify several field parameters in the `multipliers` array
+  # then the values of the corresponding parameters will be added together.
+  # here, the cost will be `parent multipliers` * (`first` + `last`) * `complexity
+  severalMultipliers(first: Int, last: Int): Int
+    @cost(multipliers: ["first", "last"])
 }
 
 type First {
@@ -150,10 +156,12 @@ type First {
 
   # the cost will depend on the `limit` value passed to the field and the value of `complexity`
   # and the parent multipliers args: here the `limit` value of the `Query.first` field
-  second (limit: Int): String @cost(multiplier: "limit", complexity: 2)
+  second(limit: Int): String @cost(multipliers: ["limit"], complexity: 2)
 
-  # the cost will be 1 * `multiplier` (1 is the default complexity and `useMultipliers` is false)
-  costWithoutMultipliers (limit: Int): Int @cost(useMultipliers: false, multiplier: "limit")
+  # the cost will be the value of the complexity arg even if you pass a `multipliers` array
+  # because `useMultipliers` is false
+  costWithoutMultipliers(limit: Int): Int
+    @cost(useMultipliers: false, multipliers: ["limit"])
 }
 ```
 
@@ -161,7 +169,7 @@ type First {
 
 > Use a Type Map Object when you don't want to contaminate your GraphQL schema definition, so every cost setting field will be reported in a specific object.
 >
-> If you dispatch your GraphQL schema in several modules, you can divide your Cost Map Object into several objects to put them in their specific modules and then merge them into one Cost Map that you can pass to the `costAnalysis` function.
+> If you dispatch your GraphQL schema in several modules, you can divide your Cost Map Object into several objects to put them in their specific modules and then merge them into one Cost Map object that you can pass to the `costAnalysis` function.
 
 Create a type Map Object representing your GraphQL schema and pass cost settings to each field for which you want a custom cost.
 
@@ -171,7 +179,7 @@ Create a type Map Object representing your GraphQL schema and pass cost settings
 const myCostMap = {
   Query: {
     first: {
-      multiplier: 'limit',
+      multipliers: ['limit'],
       useMultipliers: true,
       complexity: 3,
     },
@@ -194,7 +202,7 @@ app.use(
 
 ## Note
 
-If you just need a simple query complexity analysis (without multipliers or depth of parent multipliers), I suggest you install [graphql-query-complexity]
+If you just need a simple query complexity analysis without the GraphQL Schema Language and without multipliers and/or depth of parent multipliers, I suggest you install [graphql-query-complexity]
 
 ## License
 
