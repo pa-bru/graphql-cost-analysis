@@ -34,8 +34,8 @@ const typeDefs = `
       multipliers: ["limit"], useMultipliers: true, complexity: ${firstComplexity}
     )
 
-    severalMultipliers(first: Int, last: Int): Int @cost(
-      multipliers: ["coucou", "first", "last"], useMultipliers: true, complexity: ${fourthComplexity}
+    severalMultipliers(first: Int, last: Int, list: [String]): Int @cost(
+      multipliers: ["coucou", "first", "last", "list"], useMultipliers: true, complexity: ${fourthComplexity}
     )
 
     overrideTypeCost: TypeCost @cost(complexity: 2)
@@ -432,4 +432,27 @@ describe('Cost analysis Tests', () => {
       expect(warn).toHaveBeenCalled()
     })
   }
+
+  test(
+    `Assert a query argument of type GraphQLList added in a multipliers array ` +
+      `will have its length for its multiplier value `,
+    () => {
+      const first = 10
+      const last = 4
+      const list = ['this', 'is', 'a', 'test']
+      const ast = parse(`
+        query {
+          severalMultipliers(first: ${first}, last: ${last}, list: ["this", "is", "a", "test"])
+        }
+      `)
+
+      const context = new ValidationContext(schema, ast, typeInfo)
+      const visitor = new CostAnalysis(context, {
+        maximumCost: 1000
+      })
+      visit(ast, visitWithTypeInfo(typeInfo, visitor))
+      const expectedCost = fourthComplexity * (first + last + list.length)
+      expect(visitor.cost).toEqual(expectedCost)
+    }
+  )
 })
