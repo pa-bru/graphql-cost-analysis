@@ -30,7 +30,7 @@ export type CostAnalysisOptions = {
   createError?: (maximumCost: number, cost: number) => GraphQLError,
   defaultCost?: number,
   costMap?: Object,
-  complexityRange?: { min: number, max: number },
+  complexityRange?: { min: number, max: number }
 }
 
 type NodeType =
@@ -43,7 +43,7 @@ type NodeCostConfiguration = {
   multiplier?: ?number,
   useMultipliers?: boolean,
   complexity?: number,
-  multipliers?: Array<number>,
+  multipliers?: Array<number>
 }
 
 function costAnalysisMessage (max, actual) {
@@ -225,7 +225,15 @@ export default class CostAnalysis {
   ): Array<number> {
     // get arguments values, convert to integer and delete 0 values from list
     return multipliers
-      .map(multiplier => Number(selectn(multiplier, fieldArgs)) || 0)
+      .map(multiplier => {
+        const value = selectn(multiplier, fieldArgs)
+
+        // if the argument is an array, the multiplier will be the length of it
+        if (Array.isArray(value)) {
+          return value.length
+        }
+        return Number(value) || 0
+      })
       .filter(multiplier => multiplier !== 0)
   }
 
