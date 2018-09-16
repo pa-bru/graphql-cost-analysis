@@ -1,10 +1,11 @@
 {
   "name": "graphql-cost-analysis",
   "version": "1.0.1",
-  "description":
-    "Graphql query cost analyzer. Use it to protect your GraphQL servers against DoS attacks, compute data consumption per user and limit it.",
+  "description": "Graphql query cost analyzer. Use it to protect your GraphQL servers against DoS attacks, compute data consumption per user and limit it.",
   "main": "dist/index.js",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/pa-bru/graphql-cost-analysis.git"
@@ -65,6 +66,9 @@
     "rimraf": "^2.6.2"
   },
   "lint-staged": {
-    "*.js": ["eslint src --fix", "git add"]
+    "*.js": [
+      "eslint src --fix",
+      "git add"
+    ]
   }
 }

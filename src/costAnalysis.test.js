@@ -48,6 +48,9 @@ const typeDefs = `
     second (limit: Int): Second @cost(
       multipliers: ["limit"], useMultipliers: true, complexity: ${secondComplexity}
     )
+    anotherSecond (limit: Int): Second @cost(
+      multipliers: ["limit"], useMultipliers: true, complexity: ${secondComplexity}
+    )
   }
 
   type Second implements BasicInterface {
@@ -432,6 +435,39 @@ describe('Cost analysis Tests', () => {
       expect(warn).toHaveBeenCalled()
     })
   }
+
+  test('should consider multiple recursive cost computation', () => {
+    const limit = 10
+    const ast = parse(`
+      query {
+        first(limit: ${limit}) {
+          second(limit: ${limit}) {
+            int
+          }
+          anotherSecond(limit: ${limit}) {
+            int
+          }
+        }
+      }
+
+    `)
+
+    const context = new ValidationContext(schema, ast, typeInfo)
+    const visitor = new CostAnalysis(context, {
+      maximumCost: 10000
+    })
+
+    visit(ast, visitWithTypeInfo(typeInfo, visitor))
+
+    const firstCost = limit * firstComplexity
+    const secondCost = limit * limit * secondComplexity
+    const anotherSecondCost = limit * limit * secondComplexity
+    const result = firstCost + secondCost + anotherSecondCost
+
+    expect(visitor.cost).toEqual(result)
+    // operationMultipliers must be equal to last node's operationMultipliers
+    expect(visitor.operationMultipliers).toEqual([limit, limit])
+  })
 
   test(
     `Assert a query argument of type GraphQLList added in a multipliers array ` +

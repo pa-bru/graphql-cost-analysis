@@ -10,10 +10,13 @@ language: node_js
 node_js:
   - '8'
 
-cache: yarn
+# https://docs.travis-ci.com/user/caching
+cache:
+  directories:
+    - ./node_modules/
 
 install:
-  - yarn --no-progress --prefer-offline --check-files --production=false
+  - npm ci --production=false
 
 script:
-  - yarn run lint && yarn test
+  - npm run lint && npm test
