@@ -2,5 +2,4 @@ dist
 node_modules
 .DS_Store
 .vscode/
-package-lock.json
 yarn.lock
