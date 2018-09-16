@@ -46,10 +46,13 @@
     "selectn": "^1.1.2"
   },
   "devDependencies": {
-    "babel-cli": "^6.26.0",
+    "@babel/cli": "^7.0.0",
+    "@babel/core": "^7.0.1",
+    "@babel/preset-env": "^7.0.0",
+    "@babel/preset-flow": "^7.0.0",
+    "babel-core": "^7.0.0-bridge.0",
     "babel-eslint": "^8.1.2",
-    "babel-preset-env": "^1.6.1",
-    "babel-preset-flow": "^6.23.0",
+    "babel-jest": "^23.6.0",
     "eslint": "^4.14.0",
     "eslint-config-standard": "^11.0.0-beta.0",
     "eslint-plugin-flowtype": "^2.40.1",
@@ -61,7 +64,7 @@
     "graphql": "^0.12.3",
     "graphql-tools": "^2.14.1",
     "husky": "^0.14.3",
-    "jest": "^22.4.0",
+    "jest": "^23.6.0",
     "lint-staged": "^6.1.1",
     "rimraf": "^2.6.2"
   },
