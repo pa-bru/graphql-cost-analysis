@@ -409,7 +409,7 @@ export default class CostAnalysis {
                 .getSchema()
                 .getType(fragment.typeCondition.name.value)
             nodeCost = fragment
-              ? this.computeNodeCost(fragment, fragmentType)
+              ? this.computeNodeCost(fragment, fragmentType, this.operationMultipliers)
               : this.defaultCost
             break
           }
@@ -422,7 +422,7 @@ export default class CostAnalysis {
                 .getType(childNode.typeCondition.name.value)
             }
             nodeCost = childNode
-              ? this.computeNodeCost(childNode, inlineFragmentType)
+              ? this.computeNodeCost(childNode, inlineFragmentType, this.operationMultipliers)
               : this.defaultCost
             break
           }
