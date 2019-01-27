@@ -200,6 +200,68 @@ app.use(
 )
 ```
 
+## Using complex types (UnionType or InterfaceType)
+
+When using a [UnionType][graphql-union-types] or [Interfaces][graphql-interface-types], the highest of the nested fragments cost is used.
+
+Common interface fields outside of fragments are treated like regular fields.
+
+Given types:
+
+```graphql
+interface CommonType {
+  common: Int @cost(useMultipliers: false, complexity: 3)
+}
+
+type First implements CommonType {
+  common: Int
+  firstField: String @cost(useMultipliers: false, complexity: 5)
+}
+
+type Second implements CommonType {
+  common: Int
+  secondField: String @cost(useMultipliers: false, complexity: 8)
+}
+
+union FirstOrSecond = First | Second
+
+type Query {
+  firstOrSecond: FirstOrSecond
+  commonType: CommonType
+}
+```
+
+and a query like
+
+```graphql
+query {
+  firstOrSecond {
+    ... on First {
+      firstField
+    }
+    ...secondFields
+  }
+  commonType {
+    common
+    ...secondFields
+  }
+}
+
+fragment secondFields on Second {
+  secondField
+}
+```
+
+the complexity of the query will be `8`, 
+
+* `firstOrSecond` has a complexity of **8** 
+  * `Second.secondField` field has a defined complexity of *8* which exceeds the complexity of *5* for `First.firstField`
+* `commonType` has a complexity of **11**
+  * `secondFields` has a complexity of *8* 
+  * `common` has a complexity of *3* and is added to the previous value of *8*
+
+So the whole query has a complexity of **19**
+
 ## Note
 
 If you just need a simple query complexity analysis without the GraphQL Schema Language and without multipliers and/or depth of parent multipliers, I suggest you install [graphql-query-complexity]
@@ -217,3 +279,5 @@ graphql-cost-analysis is [MIT-licensed].
 [apollo-server]: https://github.com/apollographql/apollo-server
 [graphql-query-complexity]: https://github.com/ivome/graphql-query-complexity
 [mit-licensed]: (https://github.com/pa-bru/graphql-cost-analysis/blob/master/LICENSE)
+[graphql-union-types]: https://graphql.org/learn/schema/#union-types
+[graphql-interface-types]: https://graphql.org/learn/schema/#interfaces
