@@ -13,10 +13,11 @@ const firstComplexity = 2
 const secondComplexity = 5
 const thirdComplexity = 6
 const fourthComplexity = 4
+const firstOrSecondComplexity = 3
 
 const typeDefs = `
   interface BasicInterface {
-    string: String
+    string: String @cost(useMultipliers: false, complexity: ${customCost})
     int: Int
   }
 
@@ -51,6 +52,12 @@ const typeDefs = `
     anotherSecond (limit: Int): Second @cost(
       multipliers: ["limit"], useMultipliers: true, complexity: ${secondComplexity}
     )
+    firstOrSecond (limit: Int): FirstOrSecond @cost(
+      multipliers: ["limit"], useMultipliers: true, complexity: ${firstOrSecondComplexity}
+    )
+    basicInterface (limit: Int): BasicInterface @cost(
+      multipliers: ["limit"], useMultipliers: true, complexity: ${firstOrSecondComplexity}
+    )
   }
 
   type Second implements BasicInterface {
@@ -60,6 +67,8 @@ const typeDefs = `
       multipliers: ["limit"], useMultipliers: true, complexity: ${thirdComplexity}
     )
   }
+
+  union FirstOrSecond = First | Second
 
   type TypeCost @cost(complexity: 3) {
     string: String
@@ -196,6 +205,113 @@ describe('Cost analysis Tests', () => {
     // because customCost is another node in the Query type
     // and customCost has no multipliers arg itself
     expect(visitor.operationMultipliers).toEqual([])
+  })
+
+  test('should consider recursive cost computation when an fragment is used on an interface', () => {
+    const limit = 10
+    const ast = parse(`
+      query {
+        first(limit: ${limit}) {
+          basicInterface(limit: ${limit}) {
+            string
+            ...firstFields
+            ...secondFields
+          }
+        }
+      }
+       fragment firstFields on First {
+        second(limit: ${limit})
+      }
+       fragment secondFields on Second {
+        third(limit: ${limit})
+      }
+    `)
+
+    const context = new ValidationContext(schema, ast, typeInfo)
+    const visitor = new CostAnalysis(context, {
+      maximumCost: 10000
+    })
+
+    visit(ast, visitWithTypeInfo(typeInfo, visitor))
+
+    const firstCost = limit * firstComplexity
+    const firstOrSecondCost = limit * limit * firstOrSecondComplexity
+    const secondCost = limit * limit * limit * secondComplexity
+    const thirdCost = limit * limit * limit * thirdComplexity
+
+    const result = firstCost + firstOrSecondCost + Math.max(secondCost, thirdCost) + customCost
+    expect(visitor.cost).toEqual(result)
+    expect(visitor.operationMultipliers).toEqual([limit, limit, limit])
+  })
+
+  test('should consider recursive cost computation when an fragment is used on a union ', () => {
+    const limit = 10
+    const ast = parse(`
+      query {
+        first(limit: ${limit}) {
+          firstOrSecond(limit: ${limit}) {
+            ...firstFields
+            ...secondFields
+          }
+        }
+      }
+       fragment firstFields on First {
+        second(limit: ${limit})
+      }
+       fragment secondFields on Second {
+        third(limit: ${limit})
+      }
+    `)
+
+    const context = new ValidationContext(schema, ast, typeInfo)
+    const visitor = new CostAnalysis(context, {
+      maximumCost: 10000
+    })
+
+    visit(ast, visitWithTypeInfo(typeInfo, visitor))
+
+    const firstCost = limit * firstComplexity
+    const firstOrSecondCost = limit * limit * firstOrSecondComplexity
+    const secondCost = limit * limit * limit * secondComplexity
+    const thirdCost = limit * limit * limit * thirdComplexity
+
+    const result = firstCost + firstOrSecondCost + Math.max(secondCost, thirdCost)
+    expect(visitor.cost).toEqual(result)
+    expect(visitor.operationMultipliers).toEqual([limit, limit, limit])
+  })
+
+  test('should consider recursive cost computation when an inline fragment is used', () => {
+    const limit = 10
+    const ast = parse(`
+      query {
+        first(limit: ${limit}) {
+          firstOrSecond(limit: ${limit}) {
+            ... on First {
+              second(limit: ${limit})
+            }
+            ... on Second {
+              third(limit: ${limit})
+            }
+          }
+        }
+      }
+    `)
+
+    const context = new ValidationContext(schema, ast, typeInfo)
+    const visitor = new CostAnalysis(context, {
+      maximumCost: 10000
+    })
+
+    visit(ast, visitWithTypeInfo(typeInfo, visitor))
+
+    const firstCost = limit * firstComplexity
+    const firstOrSecondCost = limit * limit * firstOrSecondComplexity
+    const secondCost = limit * limit * limit * secondComplexity
+    const thirdCost = limit * limit * limit * thirdComplexity
+
+    const result = firstCost + firstOrSecondCost + Math.max(secondCost, thirdCost)
+    expect(visitor.cost).toEqual(result)
+    expect(visitor.operationMultipliers).toEqual([limit, limit, limit])
   })
 
   test('should report error if the maximum cost is reached', () => {

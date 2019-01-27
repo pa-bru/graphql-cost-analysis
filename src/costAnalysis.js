@@ -321,120 +321,132 @@ export default class CostAnalysis {
       fields = typeDef.getFields()
     }
 
-    return node.selectionSet.selections.reduce(
-      (total: number, childNode: SelectionNode) => {
-        // reset the operation multipliers with parentMultipliers for each childNode
-        // it resolves issue #14: https://github.com/pa-bru/graphql-cost-analysis/issues/14
-        this.operationMultipliers = [...parentMultipliers]
-        let nodeCost: number = this.defaultCost
+    const selections: Array<SelectionNode> = node.selectionSet.selections
+    let total = 0
+    let fragmentCosts = []
 
-        switch (childNode.kind) {
-          case Kind.FIELD: {
-            const field: Object = fields[childNode.name.value]
-            // Invalid field, should be caught by other validation rules
-            if (!field) {
-              break
-            }
-            const fieldType = getNamedType(field.type)
+    for (const childNode of selections) {
+      // reset the operation multipliers with parentMultipliers for each childNode
+      // it resolves issue #14: https://github.com/pa-bru/graphql-cost-analysis/issues/14
+      this.operationMultipliers = [...parentMultipliers]
+      let nodeCost: number = this.defaultCost
 
-            // get field's arguments
-            let fieldArgs = {}
-            try {
-              fieldArgs = getArgumentValues(
-                field,
-                childNode,
-                this.options.variables || {}
-              )
-            } catch (e) {
-              this.context.reportError(e)
-            }
+      switch (childNode.kind) {
+        case Kind.FIELD: {
+          const field: Object = fields[childNode.name.value]
+          // Invalid field, should be caught by other validation rules
+          if (!field) {
+            break
+          }
+          const fieldType = getNamedType(field.type)
 
-            // it the costMap option is set, compute the cost with the costMap provided
-            // by the user.
-            if (
-              this.options.costMap &&
-              typeof this.options.costMap === 'object'
-            ) {
-              const costMapArgs =
-                typeDef && typeDef.name
-                  ? this.getArgsFromCostMap(childNode, typeDef.name, fieldArgs)
-                  : undefined
-              nodeCost = this.computeCost(costMapArgs)
-            } else {
-              // Compute cost of current field with its cost directive
-              let costIsComputed: boolean = false
-              if (field.astNode && field.astNode.directives) {
-                const directiveArgs = this.getArgsFromDirectives(
-                  field.astNode.directives,
-                  fieldArgs
-                )
-                nodeCost = this.computeCost(directiveArgs)
-
-                if (directiveArgs) {
-                  costIsComputed = true
-                }
-              }
-
-              // if the cost directive is defined on the Type
-              // and the nodeCost has not already been computed
-              if (
-                fieldType &&
-                fieldType.astNode &&
-                fieldType.astNode.directives &&
-                fieldType instanceof GraphQLObjectType &&
-                costIsComputed === false
-              ) {
-                const directiveArgs = this.getArgsFromDirectives(
-                  fieldType.astNode.directives,
-                  fieldArgs
-                )
-                nodeCost = this.computeCost(directiveArgs)
-              }
-            }
-
-            let childCost = 0
-            childCost = this.computeNodeCost(
+          // get field's arguments
+          let fieldArgs = {}
+          try {
+            fieldArgs = getArgumentValues(
+              field,
               childNode,
-              fieldType,
-              this.operationMultipliers
+              this.options.variables || {}
             )
-            nodeCost += childCost
-            break
+          } catch (e) {
+            this.context.reportError(e)
           }
-          case Kind.FRAGMENT_SPREAD: {
-            const fragment = this.context.getFragment(childNode.name.value)
-            const fragmentType =
-              fragment &&
-              this.context
-                .getSchema()
-                .getType(fragment.typeCondition.name.value)
-            nodeCost = fragment
-              ? this.computeNodeCost(fragment, fragmentType)
-              : this.defaultCost
-            break
-          }
-          case Kind.INLINE_FRAGMENT: {
-            let inlineFragmentType = typeDef
-            if (childNode.typeCondition && childNode.typeCondition.name) {
-              inlineFragmentType = this.context
-                .getSchema()
-                // $FlowFixMe: don't know why Flow thinks it could be undefined
-                .getType(childNode.typeCondition.name.value)
+
+          // it the costMap option is set, compute the cost with the costMap provided
+          // by the user.
+          if (
+            this.options.costMap &&
+            typeof this.options.costMap === 'object'
+          ) {
+            const costMapArgs =
+              typeDef && typeDef.name
+                ? this.getArgsFromCostMap(childNode, typeDef.name, fieldArgs)
+                : undefined
+            nodeCost = this.computeCost(costMapArgs)
+          } else {
+            // Compute cost of current field with its cost directive
+            let costIsComputed: boolean = false
+            if (field.astNode && field.astNode.directives) {
+              const directiveArgs = this.getArgsFromDirectives(
+                field.astNode.directives,
+                fieldArgs
+              )
+              nodeCost = this.computeCost(directiveArgs)
+
+              if (directiveArgs) {
+                costIsComputed = true
+              }
             }
-            nodeCost = childNode
-              ? this.computeNodeCost(childNode, inlineFragmentType)
-              : this.defaultCost
-            break
+
+            // if the cost directive is defined on the Type
+            // and the nodeCost has not already been computed
+            if (
+              fieldType &&
+              fieldType.astNode &&
+              fieldType.astNode.directives &&
+              fieldType instanceof GraphQLObjectType &&
+              costIsComputed === false
+            ) {
+              const directiveArgs = this.getArgsFromDirectives(
+                fieldType.astNode.directives,
+                fieldArgs
+              )
+              nodeCost = this.computeCost(directiveArgs)
+            }
           }
-          default: {
-            nodeCost = this.computeNodeCost(childNode, typeDef)
-            break
-          }
+
+          let childCost = 0
+          childCost = this.computeNodeCost(
+            childNode,
+            fieldType,
+            this.operationMultipliers
+          )
+          nodeCost += childCost
+          break
         }
-        return Math.max(nodeCost, 0) + total
-      },
-      0
-    )
+        case Kind.FRAGMENT_SPREAD: {
+          const fragment = this.context.getFragment(childNode.name.value)
+          const fragmentType =
+            fragment &&
+            this.context
+              .getSchema()
+              .getType(fragment.typeCondition.name.value)
+          let fragmentNodeCost = fragment
+            ? this.computeNodeCost(fragment, fragmentType, this.operationMultipliers)
+            : this.defaultCost
+          fragmentCosts.push(fragmentNodeCost)
+          nodeCost = 0
+          break
+        }
+        case Kind.INLINE_FRAGMENT: {
+          let inlineFragmentType = typeDef
+          if (childNode.typeCondition && childNode.typeCondition.name) {
+            inlineFragmentType = this.context
+              .getSchema()
+              // $FlowFixMe: don't know why Flow thinks it could be undefined
+              .getType(childNode.typeCondition.name.value)
+          }
+          let fragmentNodeCost = childNode
+            ? this.computeNodeCost(childNode, inlineFragmentType, this.operationMultipliers)
+            : this.defaultCost
+          fragmentCosts.push(fragmentNodeCost)
+          nodeCost = 0
+          break
+        }
+        default: {
+          nodeCost = this.computeNodeCost(childNode, typeDef)
+          break
+        }
+      }
+
+      total = Math.max(nodeCost, 0) + total
+    }
+
+    if (!fragmentCosts.length) {
+      return total
+    }
+
+    return total + Math.max(...fragmentCosts)
   }
 
   createError (): GraphQLError {
