@@ -349,7 +349,8 @@ export default class CostAnalysis {
               this.options.variables || {}
             )
           } catch (e) {
-            this.context.reportError(e)
+            // ValuesOfCorrectType validation will report this
+            break
           }
 
           // it the costMap option is set, compute the cost with the costMap provided
