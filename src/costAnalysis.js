@@ -198,8 +198,15 @@ export default class CostAnalysis {
     }
 
     let { useMultipliers, multiplier, complexity, multipliers } = costObject
+
+    // NB multiplier is deprecated
     multiplier = multiplier && selectn(multiplier, fieldArgs)
-    multipliers = this.getMultipliersFromString(multipliers, fieldArgs)
+
+    if (typeof multipliers === 'function') {
+      multipliers = multipliers.apply(this, [{ node, parentType, fieldArgs }, costObject])
+    } else {
+      multipliers = this.getMultipliersFromString(multipliers, fieldArgs)
+    }
 
     return {
       useMultipliers,

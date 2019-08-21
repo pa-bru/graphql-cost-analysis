@@ -418,6 +418,45 @@ describe('Cost analysis Tests', () => {
     expect(visitor.cost).toEqual(expectedCost)
   })
 
+  test('if multipliers is provided as a function in costMap, we compute the score with it', () => {
+    const limit = 20
+    const ast = parse(`
+      query {
+        first(limit: ${limit}) {
+          second(limit: ${limit})
+        }
+      }
+    `)
+
+    const costMap = {
+      Query: {
+        first: {
+          useMultipliers: true,
+          complexity: 2,
+          multipliers: ['limit']
+        }
+      },
+      First: {
+        second: {
+          useMultipliers: true,
+          complexity: 9,
+          multipliers: ({ fieldArgs }) => [fieldArgs.limit * 3, fieldArgs.limit + 1]
+        }
+      }
+    }
+
+    const context = new ValidationContext(schema, ast, typeInfo)
+    const visitor = new CostAnalysis(context, {
+      maximumCost: 100,
+      costMap
+    })
+    visit(ast, visitWithTypeInfo(typeInfo, visitor))
+    const firstCost = limit * costMap.Query.first.complexity
+    const secondCost = limit * ((limit * 3) + (limit + 1)) * costMap.First.second.complexity
+    const expectedCost = firstCost + secondCost
+    expect(visitor.cost).toEqual(expectedCost)
+  })
+
   test('if costMap node is undefined, return the defaultCost', () => {
     const ast = parse(`
       query {
