@@ -208,6 +208,10 @@ export default class CostAnalysis {
       multipliers = this.getMultipliersFromString(multipliers, fieldArgs)
     }
 
+    if (typeof complexity === 'function') {
+      complexity = complexity.apply(this, [{ node, parentType, fieldArgs }, costObject])
+    }
+
     return {
       useMultipliers,
       multiplier,
