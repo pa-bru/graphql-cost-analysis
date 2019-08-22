@@ -198,8 +198,19 @@ export default class CostAnalysis {
     }
 
     let { useMultipliers, multiplier, complexity, multipliers } = costObject
+
+    // NB multiplier is deprecated
     multiplier = multiplier && selectn(multiplier, fieldArgs)
-    multipliers = this.getMultipliersFromString(multipliers, fieldArgs)
+
+    if (typeof multipliers === 'function') {
+      multipliers = multipliers.apply(this, [{ node, parentType, fieldArgs }, costObject])
+    } else {
+      multipliers = this.getMultipliersFromString(multipliers, fieldArgs)
+    }
+
+    if (typeof complexity === 'function') {
+      complexity = complexity.apply(this, [{ node, parentType, fieldArgs }, costObject])
+    }
 
     return {
       useMultipliers,
@@ -349,7 +360,8 @@ export default class CostAnalysis {
               this.options.variables || {}
             )
           } catch (e) {
-            this.context.reportError(e)
+            // ValuesOfCorrectType validation will report this
+            break
           }
 
           // it the costMap option is set, compute the cost with the costMap provided
