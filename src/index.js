@@ -1,6 +1,6 @@
 // @flow
 import CostAnalysis from './costAnalysis'
-import type { CostAnalysisOptions } from './CostAnalysis'
+import type { CostAnalysisOptions } from './costAnalysis'
 import type {
   ValidationContext
 } from 'graphql'

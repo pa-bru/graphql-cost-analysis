@@ -19,6 +19,7 @@ import type {
   DirectiveNode,
   GraphQLNamedType,
   ValueNode,
+  ObjectFieldNode,
   ArgumentNode,
   SelectionNode
 } from 'graphql'
@@ -209,6 +210,22 @@ export default class CostAnalysis {
     }
   }
 
+  getMultipliersFromObjectNode (
+    objectNode: $ReadOnlyArray<ObjectFieldNode>,
+    fieldArgs: { [argument: string]: mixed }
+  ) {
+    const multipliers = []
+    objectNode.forEach(field => {
+      if (field.value.kind === Kind.INT) {
+        multipliers.push([field.name.value, Number(field.value.value)])
+      } else {
+        multipliers.push(field.name.value)
+      }
+    })
+
+    return this.getMultipliersFromString(multipliers, fieldArgs)
+  }
+
   getMultipliersFromListNode (
     listNode: $ReadOnlyArray<ValueNode>,
     fieldArgs: { [argument: string]: mixed }
@@ -224,19 +241,24 @@ export default class CostAnalysis {
   }
 
   getMultipliersFromString (
-    multipliers: Array<string> = [],
+    multipliers: Array<string | [string, number]> = [],
     fieldArgs: { [argument: string]: mixed }
   ): Array<number> {
     // get arguments values, convert to integer and delete 0 values from list
     return multipliers
       .map(multiplier => {
+        let defVal = 0
+        if (Array.isArray(multiplier)) {
+          defVal = multiplier[1]
+          multiplier = multiplier[0]
+        }
         const value = selectn(multiplier, fieldArgs)
 
         // if the argument is an array, the multiplier will be the length of it
         if (Array.isArray(value)) {
           return value.length
         }
-        return Number(value) || 0
+        return Number(value) || defVal
       })
       .filter(multiplier => multiplier !== 0)
   }
@@ -281,7 +303,16 @@ export default class CostAnalysis {
             multipliersArg.value.values,
             fieldArgs
           )
-          : []
+          : (
+            multipliersArg &&
+            multipliersArg.value &&
+            multipliersArg.value.kind === Kind.OBJECT
+              ? this.getMultipliersFromObjectNode(
+                multipliersArg.value.fields,
+                fieldArgs
+              )
+              : []
+          )
 
       const multiplier: ?number =
         multiplierArg && multiplierArg.value.value

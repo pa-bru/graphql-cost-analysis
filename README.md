@@ -107,6 +107,10 @@ Now that your global configuration is set, you can define the cost calculation f
 | useMultipliers | Defines if the field's cost depends on the parent multipliers and field's multipliers.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Boolean                           | true      | no       |
 | complexity     | The level of complexity to resolve the current field. <br>If the field needs to call an expensive service to resolve itself, then the complexity should be at a high level but if the field is easy to resolve and not an expensive operation, the complexity should be at a low level.                                                                                                                                                                                                                                                                                 | Object {min: number, max: number} | {min: 1}  | no       |
 
+### Default multipliers
+
+It's possible to define `multipliers` as an object of the form `{limit: 100}`, where the number is the default value of the "limit" argument, used in cost analysis. This is different from adding a default value to the actual GraphQL argument, because it's only used for cost analysis. If the query happens to return more items, the result is not truncated.
+
 ## Defining the Cost Settings via Directives
 
 To define the cost settings of fields for which you want a custom cost calculation, just add a `cost` directive to the concerned fields directly to your GraphQL schema.
